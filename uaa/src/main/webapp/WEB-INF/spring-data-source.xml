@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<beans xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.springframework.org/schema/beans"
+	xmlns:context="http://www.springframework.org/schema/context" xmlns:jdbc="http://www.springframework.org/schema/jdbc"
+	xsi:schemaLocation="http://www.springframework.org/schema/jdbc http://www.springframework.org/schema/jdbc/spring-jdbc-3.1.xsd
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.1.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-3.1.xsd">
+
+	<bean id="applicationProperties" class="org.springframework.beans.factory.config.PropertiesFactoryBean">
+		<property name="propertiesArray">
+			<list merge="true">
+				<bean class="org.cloudfoundry.identity.uaa.config.YamlPropertiesFactoryBean">
+					<property name="resource" value="classpath:/uaa.yml" />
+				</bean>
+				<bean class="org.cloudfoundry.identity.uaa.config.YamlPropertiesFactoryBean">
+					<property name="resource" value="classpath:/uaa.yml" />
+					<property name="keyReplacements">
+						<map>
+							<entry key="databases.#{@platform}" value="database" />
+						</map>
+					</property>
+				</bean>
+				<bean class="org.cloudfoundry.identity.uaa.config.YamlPropertiesFactoryBean">
+					<property name="resource" value="file:${CLOUD_FOUNDRY_CONFIG_PATH:config}/uaa.yml" />
+					<property name="ignoreResourceNotFound" value="true" />
+				</bean>
+			</list>
+		</property>
+	</bean>
+
+	<bean id="dataSource" class="org.apache.commons.dbcp.BasicDataSource">
+		<property name="driverClassName" value="${database.driverClassName}" />
+		<property name="url" value="${database.url}" />
+		<property name="username" value="${database.username}" />
+		<property name="password" value="${database.password}" />
+	</bean>
+
+	<jdbc:initialize-database ignore-failures="ALL">
+		<jdbc:script location="classpath:org/cloudfoundry/identity/uaa/schema-#{@platform}.sql" />
+	</jdbc:initialize-database>
+
+	<beans profile="default,hsqldb">
+		<bean id="platform" class="java.lang.String">
+			<constructor-arg value="hsqldb" />
+		</bean>
+	</beans>
+
+	<beans profile="postgresql">
+		<bean id="platform" class="java.lang.String">
+			<constructor-arg value="postgresql" />
+		</bean>
+	</beans>
+
+</beans>

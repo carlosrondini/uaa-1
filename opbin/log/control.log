@@ -1,0 +1,94 @@
+[1;35;40m[WARNING][2014-04-05][18:27:05][./bin/control] Do check: your choice action is "stop" ~ [0m
+[1;31;40m[FATAL][2014-04-05][18:27:05][./bin/control] uaa already stoped ! [0m
+[1;35;40m[WARNING][2014-04-05][18:27:05][./bin/control] Do check: your choice action is "start" ~ [0m
+[1;35;40m[WARNING][2014-04-05][18:27:05][./bin/control] Trying to "start" uaa [0m
+[1;32;40m[NOTICE][2014-04-05][18:27:05][./bin/control] using the work account, check okay! [0m
+[1;32;40m[NOTICE][2014-04-05][18:27:05][./bin/control] CentOS release 6.3, check okay! [0m
+[1;32;40m[NOTICE][2014-04-05][18:27:05][./bin/control] Kernel is : 2.6.32_1-12-0-0, check okay! [0m
+[1;32;40m[NOTICE][2014-04-05][18:27:05][./bin/control] mysql is on, check okay [0m
+[1;32;40m[NOTICE][2014-04-05][18:27:06][./bin/control] bundle install --local succeed ~ [0m
+[1;32;40m[NOTICE][2014-04-05][18:27:06][./bin/control] /home/work/uaa/bin/daemon.uaa generates succeed and move on to supervise start [0m
+[1;32;40m[NOTICE][2014-04-05][18:27:06][./bin/control] generating /home/work/uaa/bin/supervise.uaa succeed! [0m
+[1;32;40m[NOTICE][2014-04-05][18:27:07][./bin/control] uaa start success ! [0m
+[1;35;40m[WARNING][2014-04-05][22:59:20][control] Do check: your choice action is "start" ~ [0m
+[1;31;40m[FATAL][2014-04-05][22:59:20][control] uaa already started ! [0m
+[1;35;40m[WARNING][2014-04-05][23:21:36][control] Do check: your choice action is "stop" ~ [0m
+[1;35;40m[WARNING][2014-04-05][23:21:36][control] Trying to "stop" uaa [0m
+[1;31;40m[FATAL][2014-04-05][23:21:38][control] mv uaa backup to /home/work/opdir/backup/20140405 failed ! [0m
+[1;35;40m[WARNING][2014-04-05][23:23:07][control] Do check: your choice action is "start" ~ [0m
+[1;35;40m[WARNING][2014-04-05][23:23:07][control] Trying to "start" uaa [0m
+[1;32;40m[NOTICE][2014-04-05][23:23:07][control] using the work account, check okay! [0m
+[1;32;40m[NOTICE][2014-04-05][23:23:07][control] CentOS release 6.3, check okay! [0m
+[1;32;40m[NOTICE][2014-04-05][23:23:07][control] Kernel is : 2.6.32_1-12-0-0, check okay! [0m
+[1;32;40m[NOTICE][2014-04-05][23:23:07][control] mysql is on, check okay [0m
+[1;32;40m[NOTICE][2014-04-05][23:23:08][control] bundle install --local succeed ~ [0m
+[1;33;40m[WARNING][2014-04-05][23:23:08][control] /home/work/uaa/bin/daemon.uaa exists, need delete and re-generate! [0m
+[1;32;40m[NOTICE][2014-04-05][23:23:08][control] /home/work/uaa/bin/daemon.uaa been deleted succeed! [0m
+[1;32;40m[NOTICE][2014-04-05][23:23:08][control] /home/work/uaa/bin/daemon.uaa generates succeed and move on to supervise start [0m
+[1;33;40m[WARNING][2014-04-05][23:23:08][control] /home/work/uaa/bin/supervise.uaa exists, need delete and re-generate! [0m
+[1;32;40m[NOTICE][2014-04-05][23:23:08][control] /home/work/uaa/bin/supervise.uaa been deleted succeed! [0m
+[1;32;40m[NOTICE][2014-04-05][23:23:08][control] generating /home/work/uaa/bin/supervise.uaa succeed! [0m
+[1;32;40m[NOTICE][2014-04-05][23:23:09][control] uaa start success ! [0m
+[1;35;40m[WARNING][2014-04-06][18:24:27][./control] Do check: your choice action is "stop" ~ [0m
+[1;35;40m[WARNING][2014-04-06][18:24:27][./control] Trying to "stop" uaa [0m
+[1;31;40m[FATAL][2014-04-06][18:24:27][./control] mkdir uaa backup to /home/work/opdir/backup/20140406 failed ! [0m
+[1;35;40m[WARNING][2014-04-06][18:24:55][./control] Do check: your choice action is "stop" ~ [0m
+[1;35;40m[WARNING][2014-04-06][18:24:55][./control] Trying to "stop" uaa [0m
+[1;32;40m[NOTICE][2014-04-06][18:24:57][./control] uaa backup to /home/work/opdir/backup/20140406 succeed ~ [0m
+[1;32;40m[NOTICE][2014-04-06][18:24:58][./control] stopping apache-tomcat succeed! [0m
+[1;33;40m[WARNING][2014-04-06][18:24:59][./control] uaa stop checking failed, 1 times [0m
+[1;32;40m[NOTICE][2014-04-06][18:25:00][./control] uaa stop success ! [0m
+[1;35;40m[WARNING][2014-04-06][18:25:05][./control] Do check: your choice action is "start" ~ [0m
+[1;35;40m[WARNING][2014-04-06][18:25:05][./control] Trying to "start" uaa [0m
+[1;32;40m[NOTICE][2014-04-06][18:25:05][./control] using the work account, check okay! [0m
+[1;32;40m[NOTICE][2014-04-06][18:25:05][./control] CentOS release 6.3, check okay! [0m
+[1;32;40m[NOTICE][2014-04-06][18:25:05][./control] Kernel is : 2.6.32_1-12-0-0, check okay! [0m
+[1;32;40m[NOTICE][2014-04-06][18:25:05][./control] mysql is on, check okay [0m
+[1;32;40m[NOTICE][2014-04-06][18:25:06][./control] bundle install --local succeed ~ [0m
+[1;33;40m[WARNING][2014-04-06][18:25:06][./control] /home/work/uaa/bin/daemon.uaa exists, need delete and re-generate! [0m
+[1;32;40m[NOTICE][2014-04-06][18:25:06][./control] /home/work/uaa/bin/daemon.uaa been deleted succeed! [0m
+[1;32;40m[NOTICE][2014-04-06][18:25:06][./control] /home/work/uaa/bin/daemon.uaa generates succeed and move on to supervise start [0m
+[1;33;40m[WARNING][2014-04-06][18:25:06][./control] /home/work/uaa/bin/supervise.uaa exists, need delete and re-generate! [0m
+[1;32;40m[NOTICE][2014-04-06][18:25:06][./control] /home/work/uaa/bin/supervise.uaa been deleted succeed! [0m
+[1;32;40m[NOTICE][2014-04-06][18:25:06][./control] generating /home/work/uaa/bin/supervise.uaa succeed! [0m
+[1;32;40m[NOTICE][2014-04-06][18:25:07][./control] uaa start success ! [0m
+[1;35;40m[WARNING][2014-04-06][18:37:59][./control] Do check: your choice action is "stop" ~ [0m
+[1;35;40m[WARNING][2014-04-06][18:37:59][./control] Trying to "stop" uaa [0m
+[1;33;40m[WARNING][2014-04-06][18:37:59][./control] /home/work/opdir/backup/20140406/uaa.tar.gz exists, skip backup ~ [0m
+[1;32;40m[NOTICE][2014-04-06][18:37:59][./control] stopping apache-tomcat succeed! [0m
+[1;33;40m[WARNING][2014-04-06][18:38:00][./control] uaa stop checking failed, 1 times [0m
+[1;32;40m[NOTICE][2014-04-06][18:38:01][./control] uaa stop success ! [0m
+[1;35;40m[WARNING][2014-04-06][18:38:03][./control] Do check: your choice action is "start" ~ [0m
+[1;35;40m[WARNING][2014-04-06][18:38:03][./control] Trying to "start" uaa [0m
+[1;32;40m[NOTICE][2014-04-06][18:38:03][./control] using the work account, check okay! [0m
+[1;32;40m[NOTICE][2014-04-06][18:38:03][./control] CentOS release 6.3, check okay! [0m
+[1;32;40m[NOTICE][2014-04-06][18:38:03][./control] Kernel is : 2.6.32_1-12-0-0, check okay! [0m
+[1;32;40m[NOTICE][2014-04-06][18:38:04][./control] mysql is on, check okay [0m
+[1;32;40m[NOTICE][2014-04-06][18:38:04][./control] bundle install --local succeed ~ [0m
+[1;33;40m[WARNING][2014-04-06][18:38:04][./control] /home/work/uaa/bin/daemon.uaa exists, need delete and re-generate! [0m
+[1;32;40m[NOTICE][2014-04-06][18:38:04][./control] /home/work/uaa/bin/daemon.uaa been deleted succeed! [0m
+[1;32;40m[NOTICE][2014-04-06][18:38:04][./control] /home/work/uaa/bin/daemon.uaa generates succeed and move on to supervise start [0m
+[1;33;40m[WARNING][2014-04-06][18:38:04][./control] /home/work/uaa/bin/supervise.uaa exists, need delete and re-generate! [0m
+[1;32;40m[NOTICE][2014-04-06][18:38:04][./control] /home/work/uaa/bin/supervise.uaa been deleted succeed! [0m
+[1;32;40m[NOTICE][2014-04-06][18:38:04][./control] generating /home/work/uaa/bin/supervise.uaa succeed! [0m
+[1;32;40m[NOTICE][2014-04-06][18:38:05][./control] uaa start success ! [0m
+[1;35;40m[WARNING][2014-04-08][10:24:36][./control] Do check: your choice action is "stop" ~ [0m
+[1;35;40m[WARNING][2014-04-08][10:24:36][./control] Trying to "stop" uaa [0m
+[1;32;40m[NOTICE][2014-04-08][10:24:38][./control] uaa backup to /home/work/opdir/backup/20140408 succeed ~ [0m
+[1;32;40m[NOTICE][2014-04-08][10:24:39][./control] stopping apache-tomcat succeed! [0m
+[1;33;40m[WARNING][2014-04-08][10:24:40][./control] uaa stop checking failed, 1 times [0m
+[1;32;40m[NOTICE][2014-04-08][10:24:41][./control] uaa stop success ! [0m
+[1;35;40m[WARNING][2014-04-08][13:52:55][./control] Do check: your choice action is "start" ~ [0m
+[1;35;40m[WARNING][2014-04-08][13:52:55][./control] Trying to "start" uaa [0m
+[1;32;40m[NOTICE][2014-04-08][13:52:55][./control] using the work account, check okay! [0m
+[1;32;40m[NOTICE][2014-04-08][13:52:55][./control] CentOS release 6.3, check okay! [0m
+[1;32;40m[NOTICE][2014-04-08][13:52:55][./control] Kernel is : 2.6.32_1-12-0-0, check okay! [0m
+[1;32;40m[NOTICE][2014-04-08][13:52:55][./control] mysql is on, check okay [0m
+[1;32;40m[NOTICE][2014-04-08][13:52:56][./control] bundle install --local succeed ~ [0m
+[1;33;40m[WARNING][2014-04-08][13:52:56][./control] /home/work/uaa/bin/daemon.uaa exists, need delete and re-generate! [0m
+[1;32;40m[NOTICE][2014-04-08][13:52:56][./control] /home/work/uaa/bin/daemon.uaa been deleted succeed! [0m
+[1;32;40m[NOTICE][2014-04-08][13:52:56][./control] /home/work/uaa/bin/daemon.uaa generates succeed and move on to supervise start [0m
+[1;33;40m[WARNING][2014-04-08][13:52:56][./control] /home/work/uaa/bin/supervise.uaa exists, need delete and re-generate! [0m
+[1;32;40m[NOTICE][2014-04-08][13:52:56][./control] /home/work/uaa/bin/supervise.uaa been deleted succeed! [0m
+[1;32;40m[NOTICE][2014-04-08][13:52:56][./control] generating /home/work/uaa/bin/supervise.uaa succeed! [0m
+[1;32;40m[NOTICE][2014-04-08][13:52:57][./control] uaa start success ! [0m

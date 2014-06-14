@@ -1,0 +1,568 @@
+#!/bin/bash
+# lib.sh
+# 所有运维接口的通用基本库，由于lib.sh会对所有使用方同步更新，所有的改动请修改运维接口，通过重写函数来实现，不要修改此库。
+# 目前使用此脚本的线上模块：cb-nginx，cb-fcgi
+# ！！请勿直接改动此脚本！！此脚本的所有改动需要保证兼容所有使用本脚本的运维接口！！
+
+set -eu
+# 机器名
+HOSTNAME=`hostname | awk -F '.' '{print$1"."$2}'`
+
+# 产品线名
+PRODUCT_NAME=`curl "http:///goat/index.php?r=RestApi/GetProd&rName=$HOSTNAME" 2>/dev/null |  awk -F '_' '{print $NF}'`
+
+# 服务名，默认值为运维接口的_control前部分，依赖于启动脚本的命名，建议在运维接口中重新定义
+: ${PRO_NAME:=$(basename ${0%%_control})}
+# 运维接口名
+: ${CONTROL_NAME:=$(basename ${0})}
+# 服务所在路径，默认为运维接口所在路径，依赖于运维接口的路径，建议在运维接口中重新定义
+: ${PRO_HOME:="$(pwd)/$(dirname $0)"}
+# 运维接口程序的相关路径
+: ${BIN_PATH:="$PRO_HOME/opbin/bin"}
+: ${CONF_PATH:="$PRO_HOME/opbin/conf"}
+: ${DATA_PATH:="$PRO_HOME/opbin/data"}
+: ${LOG_PATH:="$PRO_HOME/opbin/log"}
+: ${LOG_FILE:="$LOG_PATH/control.log"}
+# 日志级别: fatal 2: warning 3: notice，级别越高打印的东西越多
+: ${LOG_LEVEL:=3}
+# 启动模块的重试时间（1s重试一次）
+: ${START_WAIT_TIME:=5}
+# 停止模块的重试时间（1s重试一次）
+: ${STOP_WAIT_TIME:=5}
+# try函数的默认重试次数
+: ${DEFAULT_TRY_TIME:=3}
+# 默认邮件发送命令
+: ${MAIL_CMD:="/bin/mail"}
+# 默认短信发送命令
+: ${GSM_CMD:="/bin/gsmsend "}
+# 默认启动失败信息检查条数
+: ${FATAL_LOG_CNT:=1000}
+# 默认启动失败信息输出条数
+: ${FATAL_SHOW_CNT:=20}
+# 默认启动失败信息输出日志
+: ${FATAL_LOG_FILE:="$PRO_HOME/log/${PRO_NAME}.log.wf"}
+
+# 默认WGET命令
+: ${WGET_CMD="wget --limit-rate=5m"}
+# 异常抓取
+function err_trap()
+{
+    fatal "[LINE:$1] command or function exited with status $?"
+    exit 1
+}
+trap "err_trap $LINENO" ERR
+
+# 接口命令解释
+# 如果有别的接口，建议重载user_action
+function user_action()
+{
+    return 1
+}
+function action()
+{
+    # $1为动作，$2为动作的参数
+    : ${func:=${1:-'other'}}
+    shift || true
+    : ${para:=${@:-''}}
+    user_action && exit 0 || true
+    case "$func" in
+        start) start ;;
+        stop) stop ;;
+        restart|re) stop && start ;;
+        mon|monitor) monitor $para ;;
+        status|st) ck_status ;;
+        fatal) ck_fatal ;;
+        query|get) query $para ;;
+        dts_check|dts_chk) check_service ;;
+        dts_update|dts_up) update_service ;;
+        *) usage ;;
+    esac
+}
+
+# 查询当前的一些监控参数，使用grep监控缓存文件的方式实现
+function query()
+{
+    para=${1:-''}
+    MONITOR_RESULT_FILE=$DATA_PATH/monitor_result.noah
+    [[ -n $para ]] && grep "$para" $MONITOR_RESULT_FILE || usage
+
+}
+
+# 帮助，如果需要在帮助中加功能，可以重载user_usage函数
+function user_usage()
+{
+    return 0
+}
+function usage()
+{
+    MONITOR_RESULT_FILE=$DATA_PATH/monitor_result.noah
+    cat <<-HD_USAGE
+
+${PRO_NAME} 运维接口
+
+[用法]
+$0 action [para]
+
+[接口列表]
+start:       启动程序
+stop:        停止程序
+restart/re:  重启程序
+monitor/mon: 返回监控结果，缓存1分钟
+    default/noah: 返回noah风格的结果
+    json:         返回json风格的结果
+    clear:        清除缓存
+query/get:   查询监控结果中的某些项目，支持正则，可以查询的内容如下
+$([[ -f $MONITOR_RESULT_FILE ]] && awk -F':' '/:/ {print "    "$1}' $MONITOR_RESULT_FILE)
+status/st:   检查程序健康状态
+$(user_usage)
+dts_check/dts_ck    检查数据配送数据是否最新
+dts_update/dts_up   更新数据配送数据到最新
+other:       打印这个帮助
+
+HD_USAGE
+}
+
+# 默认的监控函数，只调用健康检查，建议重写
+# 注意监控结果格式为（不需要打BDEOF）：
+# key:value
+function cmd_monitor()
+{
+    ck_health && echo status: 0 || echo status: 1
+}
+
+# 监控控制函数，监控缓存1分钟，支持NOAH格式和json格式（json格式同ubmonitor）
+# 缓存实现方法：通过判断TAG_LAST_TIME文件中的时间戳来判断是否重新调用cmd_monitor，并重写MONITOR_RESULT_FILE
+# 参数：
+#  noah：返回noah格式的监控结果
+#  json：返回json格式的监控结果，格式同ubmonitor
+#  clear：清除缓存，下次调用时会强制调用cmd_monitor
+function monitor()
+{
+    TAG_LAST_TIME=$DATA_PATH/tag_last_time
+    MONITOR_RESULT_FILE=$DATA_PATH/monitor_result
+    MONITOR_RESULT_FILE_TMP=$DATA_PATH/monitor_result.tmp
+    
+    now_time=$(date +%Y%m%d%H%M)
+    # 如果不加参数，则默认使用noah模式
+    montype=${1:-"noah"}
+    
+    [[ "$montype" != "noah" && "$montype" != "json" && "$montype" != "clear" ]] && warning "error monitor parameter !" && return 0
+    
+    [[ "$montype" == "clear" ]] && {
+        notice "clear monitor cache"
+        rm -f $TAG_LAST_TIME
+        return 0
+    }
+    
+    # 判断缓存是否过期
+    if [[ -f "$TAG_LAST_TIME" && -f "$MONITOR_RESULT_FILE.$montype" ]]
+    then
+        last_time=$(cat $TAG_LAST_TIME)
+        [[ "$now_time" == "$last_time" ]] && {
+            notice "return monitor result in cache"
+                        cat "$MONITOR_RESULT_FILE.$montype" && exit 0
+                }
+    fi
+    
+        mkdir -p $DATA_PATH
+    echo $now_time > $TAG_LAST_TIME
+    
+    notice "cache out of time, try to get result"
+    cat > $MONITOR_RESULT_FILE_TMP <<-HD_RESULT
+$(cmd_monitor)
+BDEOF
+HD_RESULT
+
+    mv $MONITOR_RESULT_FILE_TMP $MONITOR_RESULT_FILE.noah
+    # json格式是由noah格式转换而成的
+    $BIN_PATH/monitor_convert.pl $PRO_NAME $MONITOR_RESULT_FILE.noah > $MONITOR_RESULT_FILE.json.tmp
+    mv $MONITOR_RESULT_FILE.json.tmp $MONITOR_RESULT_FILE.json
+    cat $MONITOR_RESULT_FILE.$montype
+}
+
+# 启动程序的命令，建议重写
+function cmd_start()
+{
+    cd $PRO_HOME || return 2
+    ( ./bin/$PRO_NAME >/dev/null 2>&1 & )
+}
+
+# 程序健康检查，会被启停判断调用，建议重写
+function ck_health()
+{
+    pstree work | grep -v "$CONTROL_NAME" | grep "$PRO_NAME" >/dev/null && return 0 || return 1
+}
+
+# 程序启动失败信息输出
+function ck_fatal()
+{
+    echo "Here's ${FATAL_LOG_FILE} fatal info to debug : "
+    [[ -f ${FATAL_LOG_FILE} ]] && {
+        tail -${FATAL_LOG_CNT} ${FATAL_LOG_FILE} | grep -i "fatal" | tail -${FATAL_SHOW_CNT}
+    } || {
+        echo "${FATAL_LOG_FILE} file not exsit!!!"
+    }
+
+    return 0
+}
+
+# 返回检查检查的结果
+function ck_status()
+{
+    ck_health && {
+        echo status: OK
+        return 0
+    } || {
+        echo status: ERROR
+        return 1
+    }
+}
+
+# 启动检查，默认为调用健康检查，如果有特殊要求可以重写
+function ck_start()
+{
+    ck_health && return 0 || return 1
+}
+
+# 停止程序的命令，建议重写
+function cmd_stop()
+{
+    killall $PRO_NAME || return 0
+}
+
+# 启动检查，默认为调用健康检查并取反，如果有特殊要求可以重写
+function ck_stop()
+{
+    ck_health && return 1 || return 0
+}
+
+# 用于重试的基本函数
+# $1：命令，使用eval调用，可以是一串命令，需要用引号
+# $2：重试次数，默认为DEFAULT_TRY_TIME
+function try()
+{
+    cmd2try=$1
+    total_try_time=${2:$DEFAULT_TRY_TIME}
+    tryed=1
+
+    notice "try $cmd2try ($tryed)"
+    eval $cmd2try && {
+        notice "$cmd2try success ($tryed) !"
+        return 0
+    } || {
+        notice "$cmd2try fail ($tryed)."
+    }
+    while [[ $tryed -lt $total_try_time ]]
+    do
+        ((tryed++))
+        notice "try $cmd2try ($tryed)"
+        eval $cmd2try && {
+            notice "$cmd2try success !"
+            return 0
+        } || {
+            notice "$cmd2try fail ($tryed)."
+        }
+        sleep 1
+    done
+    warning "$cmd2try finally failed !"
+    return 1
+}
+
+# 启动控制函数，会尝试调用ck_start判断是否启动成功
+function start()
+{
+    ck_start && {
+        notice "$PRO_NAME already started !"
+        echo "$PRO_NAME already started !"
+        return 0
+    }
+    notice "try to start $PRO_NAME"
+    cmd_start
+    wait_s=0
+    success=1
+    ck_start && success=0
+    while [[ $success -ne 0 && $wait_s -lt $START_WAIT_TIME ]]
+    do
+            wait_s=`expr $wait_s + 1`
+            sleep 1
+            ck_start && success=0
+    done
+    [[ $success -eq 0 ]] && {
+        notice "$PRO_NAME start success !"
+        echo "$PRO_NAME start success !"
+    } || {
+        warning "$PRO_NAME start fail !"
+        exit 1
+    }
+}
+
+# 停止控制函数，会尝试调用ck_stop判断是否停止成功
+function stop()
+{
+    ck_stop && {
+        notice "$PRO_NAME already stoped !"
+        echo "$PRO_NAME already stoped !"
+        return 0
+    }
+    notice "try to stop $PRO_NAME"
+    cmd_stop
+    wait_s=0
+    success=1
+    ck_stop && success=0
+    while [[ $success -ne 0 && $wait_s -lt $STOP_WAIT_TIME ]]
+    do
+            wait_s=`expr $wait_s + 1`
+            sleep 1
+            ck_stop && success=0
+    done
+    [[ $success -eq 0 ]] && {
+        notice "$PRO_NAME stop success !"
+        echo "$PRO_NAME stop success !"
+    } || {
+        warning "$PRO_NAME stop fail !"
+        exit 1
+    }
+}
+
+function check(){
+
+        md5_name_tmp=$1.tmp
+        dts_machine=`noahdt list $6 | grep uri | awk -F '@|:' '{print $4}'`
+        mkdir -p $7
+        cd $7
+        try "$WGET_CMD ftp://$dts_machine/$4/$1 -O $md5_name_tmp &>/dev/null" || {
+                ret=$?
+                echo "$2:$6 $WGET_CMD md5 file fail,return $ret."
+                return 1
+        }
+
+        diff $1 $md5_name_tmp >/dev/null && {
+                echo "$2:$6 md5 file not change, don't need to update."
+                rm $md5_name_tmp
+                return 0
+        } || {
+                echo "$2:$6 md5 has changed, need to update."
+                mv $md5_name_tmp $1
+                return 1
+        }
+
+}
+
+function update(){
+
+        [[ -d $7 ]] || mkdir -p $7
+        noahdt download $6 $7
+        [[ $? -eq 0 ]] && eval $5
+        [[ $? -eq 0 ]] && {
+                echo "$2:$6 file has updated."
+        }
+}
+
+function check_service(){
+        item_cnt=-1
+        beinfo -p $PRODUCT_NAME -s $PRO_NAME -m dts | while read line
+        do
+                if [[ "$line" == "------" ]];
+                then
+                        #item_cnt=`expr $item_cnt + 1`
+                        item_cnt=$(( $item_cnt + 1))
+                        tag_cnt=-1
+                        [[ $item_cnt -ne 0 ]] && check "${value[@]}"
+                        unset name
+                        unset value
+                        continue
+                else
+                        #tag_cnt=`expr $tag_cnt + 1`
+                        tag_cnt=$(( $tag_cnt + 1))
+                        name[$tag_cnt]="`echo $line|awk -F ' : ' '{print $1}'`"
+                        value[$tag_cnt]="`echo $line|awk -F ' : ' '{print $2}'`"
+
+                fi
+        done
+}
+
+
+
+function update_service(){
+        item_cnt=-1
+        beinfo -p $PRODUCT_NAME -s $PRO_NAME -m dts | while read line
+        do
+                if [[ "$line" == "------" ]];
+                then
+                        #item_cnt=`expr $item_cnt + 1`
+                        item_cnt=$(( $item_cnt + 1))
+                        tag_cnt=-1
+                        
+                        [[ $item_cnt -ne 0 ]] && update "${value[@]}"
+                        unset name
+                        unset value
+                        continue
+                else
+                        #tag_cnt=`expr $tag_cnt + 1`
+                        tag_cnt=$(( $tag_cnt + 1))
+                        name[$tag_cnt]="`echo $line|awk -F ' : ' '{print $1}'`"
+                        value[$tag_cnt]="`echo $line|awk -F ' : ' '{print $2}'`"
+
+                fi
+        done
+}
+
+# 发邮件的函数，有机收件人为$MAILLIST，用法为
+# 邮件正文 | sendmail "邮件标题"
+# 注意邮件正文是用管道给出的，比如
+# echo text | sendmail title
+function sendmail() {
+    $MAIL_CMD -s "$* - from $(hostname)" $MAILLIST
+}
+
+# 发短信的函数，用法为sendgsm "短信内容"，短信收件人为MOBILELIST
+function sendgsm() {
+    for mobile in $MOBILELIST
+    do
+        $GSM_CMD $mobile@"$* - from $(hostname)"
+    done
+}
+
+##########################################################################################################
+# 日志变量定义
+: ${SCIRPT:="$0"}
+: ${GREEN:="\033[32m"}
+: ${RED:="\033[31m"}
+: ${YELLOW:="\033[33m"}
+: ${ORIGIN:="\033[0m"}
+
+# 打印日志到$LOG_PATH/$LOG_FILE
+function log() {
+    mkdir -p $LOG_PATH
+    echo $(date +%F_%T) "$*" | tee -a $LOG_FILE >&2
+}
+
+# notice日志
+function notice() {
+    [[ $LOG_LEVEL -ge 3 ]] && {
+        mkdir -p $LOG_PATH
+        echo -e "${GREEN} [NOTICE][${SCIRPT}][$(date +%F_%T)] $* ${ORIGIN}" | tee -a $LOG_FILE >&2
+    }
+}
+
+# warning日志
+function warning() {
+    [[ $LOG_LEVEL -ge 2 ]] && {
+        mkdir -p $LOG_PATH
+        echo -e "${YELLOW} [WARNING][${SCIRPT}][$(date +%F_%T)] $* ${ORIGIN}" | tee -a $LOG_FILE >&2
+    }
+}
+
+# fatal日志
+function fatal() {
+    [[ $LOG_LEVEL -ge 1 ]] && {
+        mkdir -p $LOG_PATH
+        echo -e "${RED} [FATAL][${SCIRPT}][$(date +%F_%T)] $* ${ORIGIN}" | tee -a $LOG_FILE >&2
+    }
+}
+
+# 报警函数，包装了fatal,sendmail,sendgsm
+function alert() {
+    fatal "$*"
+    echo "$*" | sendmail "$*"
+    sendgsm "$*"
+}
+
+##########################################################################################################
+# 状态变量定义
+: ${STATE_SUCCEED:=0}
+: ${STATE_FAILED:=1}
+: ${STATE_UNEXPECT:=2}
+: ${PID_TIMEOUT:=10}
+: ${SUPERVISE_MODULE_NAME:="samplexxx"}
+
+# 杀死特定进程
+function wait_pid() {
+    local cur_pid=$1
+
+    local cur_timeout=${PID_TIMEOUT}
+    [[ -z "${PID_TIMEOUT}" || "${PID_TIMEOUT}" -lt 0 ]] && {
+        cur_timeout=10
+    }
+
+    [[ -z "${cur_pid}" ]] && {
+        fatal " The pid [${cur_pid}] to be killed does not exist!"
+        return ${STATE_UNEXPECT}
+    }
+
+
+    [[ -e "/proc/${cur_pid}" ]] && {
+        kill ${cur_pid}
+
+        start_point=${SECONDS}
+        while [[ -e "/proc/${cur_pid}" ]]; do
+            duration=$((SECONDS-start_point))
+            [[ "${duration}" -gt "${cur_timeout}" ]] && {
+                kill -9 ${cur_pid}
+                warning "The pid [${cur_pid}] be killed with -9 !"
+                break
+            }
+        done
+
+        [[ -e "/proc/${cur_pid}" ]] && {
+            fatal "Process still exists after kill -9 !" 
+            return ${STATE_FAILED}
+        } || {
+            notice "The pid [${cur_pid}] has been killed succeed!"
+            return ${STATE_SUCCEED}
+        }
+    } || {
+        warning "The process is not running!"
+        return ${STATE_UNEXPECT}
+    }
+
+    return ${STATE_UNEXPECT}
+}
+
+function wait_pidfile() {
+    local cur_pidfile=$1
+    [[ -f "${cur_pidfile}" ]] && {
+        cur_pid=$(head -1 "${cur_pidfile}")
+        wait_pid ${cur_pid}
+    } || {
+        warning "${cur_pidfile} not exist, maybe process is not running!"
+        return ${STATE_UNEXPECT}
+    }
+}
+
+function do_pidstatus() {
+    local cur_pidfile=$1
+
+    [[ ! -f "${cur_pidfile}" ]] && {
+        fatal "${cur_pidfile} is missing, please check!"
+        return ${STATE_FAILED}
+    }
+
+    local cur_pid=`head -1 ${cur_pidfile}`
+    [[ -n "${cur_pid}" && -e "/proc/${cur_pid}" && -n "$(pidof ${SUPERVISE_MODULE_NAME})" ]] && {
+        notice "pid status checking OK!"
+        return ${STATE_SUCCEED}
+    } || {
+        fatal "pid status checking ERROR!"
+        return ${STATE_FAILED}
+    }
+}
+
+function check_pidstatus() {
+    local cur_pidfile=$1
+
+    count=0
+    while [[ $count -lt 20 ]]; do
+        sleep 1
+        count=`expr $count + 1`
+   
+        do_pidstatus ${cur_pidfile} && {
+            notice "${PRO_NAME} running succeed"
+            return ${STATE_SUCCEED}
+        }
+    done
+  
+    [[ $count -ge 10 ]] && {
+        fatal "${PRO_NAME} fail to start!"
+    }
+}

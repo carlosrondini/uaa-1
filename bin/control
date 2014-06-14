@@ -1,0 +1,180 @@
+#!/bin/env bash
+#############################################################################################
+# version:      0.0.1
+# brief:        a control script providing common interfaces for the module's cyclelife
+#        	please pay attention to the common lib : opbin/bin/lib.sh
+# usage:        sh control [start|stop|restart|monitor|status]
+# history:      2013/12/17 create version 0.0.1
+#               2013/12/17 run succeed for initial version
+#############################################################################################
+
+#############################################################################################
+# Step 0. Setting script running mode
+#############################################################################################
+set -eu
+set -o pipefail
+
+#############################################################################################
+# Step 1. Setting global variables: with default values, re-assign if needed
+#############################################################################################
+
+# module name
+PRO_NAME="uaa"
+
+# module path
+PRO_HOME="/home/work/${PRO_NAME}"
+
+# source lib
+source ${PRO_HOME}/opbin/bin/lib.sh
+
+# refresh const
+refresh_consts
+
+#############################################################################################
+# Step 2. Define some required steps for override interfaces
+#############################################################################################
+
+# module depends
+function solve_depends()
+{
+    check_work
+    check_os
+    check_kernel
+    install_mysql
+}
+
+# environment setup
+function env_setup()
+{
+    export PATH=/home/work/opbin/ruby-1.9.3-p448/bin:$PATH
+    export CLOUD_FOUNDRY_CONFIG_PATH=/home/work/uaa/config
+    export UAA_TOMCAT=/home/work/uaa/apache-tomcat-6.0.36   
+
+    chown -R work:work ${PRO_HOME}
+}
+
+# generate start script
+function gen_sup_script()
+{
+    SUPERVISE_DEAMON="${MODULE_BIN_PATH}/${SUPERVISE_DEAMON_NAME}"
+    
+    [[ ! -d ${MODULE_BIN_PATH} ]] && {
+        warning "${MODULE_BIN_PATH} not exist, need generate it!" && {
+            mkdir -p ${MODULE_BIN_PATH}
+        }
+    }
+
+    [[ -f ${SUPERVISE_DEAMON} ]] && {
+        warning "${SUPERVISE_DEAMON} exists, need delete and re-generate!"
+        rm -f ${SUPERVISE_DEAMON} && {
+            notice "${SUPERVISE_DEAMON} been deleted succeed!"
+        }
+    }
+
+    #DAEMON="${PRO_HOME}/bin/uaa"
+    #DAEMON_ARGS=" -c ${CONFIG_FILE}"
+    DAEMON="uaa"
+    DAEMON_ARGS=" "
+    STDOUT_LOG="${PRO_HOME}/log/${PRO_NAME}_stdout.log"
+    STDERR_LOG="${PRO_HOME}/log/${PRO_NAME}_stderr.log"
+
+    echo "sh -c \"cd ${PRO_HOME}/bin/ && nohup ruby ${DAEMON} & sleep 1\" </dev/null &>/dev/null" \
+         > ${SUPERVISE_DEAMON}
+    
+    [[ -f ${SUPERVISE_DEAMON} ]] && {
+        notice "${SUPERVISE_DEAMON} generates succeed and move on to supervise start"
+    } || {
+        fatal "${SUPERVISE_DEAMON} generates failed and exiting ..."
+        exit ${STATE_UNEXPECT}
+    }
+}
+
+# generate supervise
+function gen_sup_module()
+{
+    SUPERVISE_MODULE="${MODULE_BIN_PATH}/${SUPERVISE_MODULE_NAME}"
+
+    [[ ! -d ${MODULE_BIN_PATH} ]] && {
+        warning "${MODULE_BIN_PATH} not exist, need generate it!" && {
+            mkdir -p ${MODULE_BIN_PATH}
+        }
+    }
+
+    [[ -f ${SUPERVISE_MODULE} ]] && {
+        warning "${SUPERVISE_MODULE} exists, need delete and re-generate!"
+        rm -f ${SUPERVISE_MODULE} && {
+            notice "${SUPERVISE_MODULE} been deleted succeed!"
+        }
+    }
+
+    [[ -f "${SUPERVISE}" ]] && {
+        cp ${SUPERVISE} ${SUPERVISE_MODULE} && {
+            notice "generating ${SUPERVISE_MODULE} succeed!"
+        }
+    } || {
+        fatal "${SUPERVISE} is missing, please do check!"
+        exit ${STATE_UNEXPECT}
+    }
+}
+
+#############################################################################################
+# Step 3. Overwrite the interface in common lib : ../opbin/bin/lib.sh
+#############################################################################################
+
+function ck_health()
+{
+    spv_procs=`ps aux | grep  "ruby ${PRO_NAME}" | grep -v 'grep'`
+    [[ -z ${spv_procs} ]] && {
+        return 1
+    } || {
+        return 0
+    }
+}
+
+function pre_start()
+{
+    env_setup
+    
+    solve_depends
+    
+    gem_init_local
+    
+    gen_sup_script && gen_sup_module
+}   
+        
+function cmd_start()
+{
+    # supervised start
+    SUPERVISE_ARGS="${PRO_HOME}/status/${PRO_NAME}"
+    mkdir -p ${PRO_HOME}/status/${PRO_NAME}
+    #SUPERVISE_CMD=`cat ${SUPERVISE_DEAMON}`
+    #(${SUPERVISE_MODULE} -p ${SUPERVISE_ARGS} -f "${SUPERVISE_CMD}" 0</dev/null &>/dev/null &)
+    cd /home/work/uaa/bin && nohup ruby uaa &           
+}           
+        
+function pre_stop()
+{   
+    env_setup    
+    backup_self   
+}
+
+function cmd_stop()
+{
+    cd ${PRO_HOME}/apache-tomcat-6.0.36/bin && ./shutdown.sh && {
+        notice "stopping apache-tomcat succeed!"
+    } || {
+        warning "stopping apache-tomcat failed"
+    }
+
+    #wait_pidfile ${PID_FILE} && {
+    #    notice "${PRO_NAME} stop succeed!"
+    #} || {
+    #    fatal "${PRO_NAME} stop failed!"
+    #}
+}
+
+#############################################################################################
+# Step 4. Main entry
+#############################################################################################
+
+action $@

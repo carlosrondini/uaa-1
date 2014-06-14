@@ -1,0 +1,73 @@
+---
+
+pid: /home/work/uaa/status/uaa.pid
+mbus: <$ var_nats_path $>
+logging:
+  file: /home/work/uaa/log/uaa.log
+  level: debug
+uaa:
+   host: <$ var_local_route $>
+   port: 8080
+
+tags:
+   component: uaa
+
+database:
+  url: <$ var_uaa_uaadatabase $>
+  username: <$ var_uaa_user $>
+  password: <$ var_uaa_passwd $>
+jvm_args: -Xmx512m
+spring_profiles: mysql
+
+cloud_controller:
+  database:
+    url: <$ var_uaa_ccdatabase $>
+    username: <$ var_cc_user $>
+    password: <$ var_cc_passwd $>
+jwt:
+  token:
+    signing-key: <$ var_symmetric_secret $>
+    verification-key: <$ var_symmetric_secret $>
+
+oauth:
+    clients:
+        admin:
+            authorized-grant-types: client_credentials
+            scope: clients.read,clients.write,clients.secret,uaa.admin,scim.read,scim.write
+            authorities: clients.read,clients.write,clients.secret,uaa.admin,scim.read,scim.write
+            id: admin
+            secret: adminsecret
+            resource-ids: none
+        cloud_controller:
+            authorized-grant-types: client_credentials
+            authorities: scim.read,scim.write,password.write,uaa.resource
+            id: cloud_controller
+            secret: cloudcontrollersecret
+            resource-ids: none
+            access-token-validity: 604800
+        vmc:
+            authorized-grant-types: implicit
+            authorities: uaa.none
+            id: vmc
+            resource-ids: none
+            redirect-uri: http://uaa.cloudfoundry.com/redirect/vmc,https://uaa.cloudfoundry.com/redirect/vmc
+            access-token-validity: 604800
+        cf:
+            authorized-grant-types: password
+            authorities: uaa.none
+            scope: uaa.admin,scim.read,scim.write,openid,password.write,cloud_controller.admin,cloud_controller.read,cloud_controller.write
+            id: cf
+            resource-ids: none
+            redirect-uri: http://uaa.cloudfoundry.com/redirect/cf,https://uaa.cloudfoundry.com/redirect/cf
+            access-token-validity: 604800
+            autoapprove: true
+        login:
+            id: login
+            secret: loginsecret
+            authorized-grant-types: client_credentials
+            authorities: cloud_controller.admin,loud_controller.write,uaa.admin,scim.read,scim.write,openid,password.write
+            scope: cloud_controller.admin,cloud_controller.write,uaa.admin,scim.read,scim.write,openid,password.write
+scim:
+  users:
+    - admin|adminsecret|clients.read,clients.write,clients.secret,uaa.admin,scim.read,scim.write,password.write,cloud_controller.admin
+index: 1

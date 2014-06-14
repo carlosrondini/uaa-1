@@ -1,0 +1,91 @@
+/*
+ * Copyright 2006-2011 the original author or authors.
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on
+ * an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License for the
+ * specific language governing permissions and limitations under the License.
+ */
+package org.cloudfoundry.identity.uaa.scim;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
+import org.springframework.util.StringUtils;
+
+import edu.vt.middleware.dictionary.ArrayWordList;
+import edu.vt.middleware.dictionary.WordListDictionary;
+import edu.vt.middleware.dictionary.WordLists;
+import edu.vt.middleware.password.AlphabeticalCharacterRule;
+import edu.vt.middleware.password.AlphabeticalSequenceRule;
+import edu.vt.middleware.password.DictionarySubstringRule;
+import edu.vt.middleware.password.DigitCharacterRule;
+import edu.vt.middleware.password.LengthRule;
+import edu.vt.middleware.password.NumericalSequenceRule;
+import edu.vt.middleware.password.Password;
+import edu.vt.middleware.password.PasswordData;
+import edu.vt.middleware.password.QwertySequenceRule;
+import edu.vt.middleware.password.RegexRule;
+import edu.vt.middleware.password.RepeatCharacterRegexRule;
+import edu.vt.middleware.password.Rule;
+import edu.vt.middleware.password.RuleResult;
+import edu.vt.middleware.password.UsernameRule;
+
+/**
+ * A standard password validator built using vt-password rules.
+ *
+ * @author Luke Taylor
+ */
+public class DefaultPasswordValidator implements PasswordValidator {
+	private final List<Rule> defaultRules;
+
+	public DefaultPasswordValidator() {
+		List<Rule> rules = new ArrayList<Rule>(6);
+		rules.add(new LengthRule(10, 50));
+		rules.add(new DigitCharacterRule());
+		rules.add(new AlphabeticalCharacterRule());
+		rules.add(new UsernameRule(true, true));
+		// Try and catch variations on "password" as a password
+		rules.add(new RegexRule("[pP]+[aA@&]*[sSzZ$]+[wW]+[oO0]*[rR]*[dD]*"));
+		rules.add(new RepeatCharacterRegexRule());
+		rules.add(new NumericalSequenceRule());
+		rules.add(new AlphabeticalSequenceRule());
+		rules.add(new QwertySequenceRule());
+
+		defaultRules = Collections.unmodifiableList(rules);
+	}
+
+	@Override
+	public void validate(String password, ScimUser user) throws InvalidPasswordException {
+		List<Rule> rules;
+
+		PasswordData passwordData = new PasswordData(new Password(password));
+		passwordData.setUsername(user.getUserName());
+
+		// Build dictionary rule based on Scim data
+		rules = new ArrayList<Rule>(defaultRules);
+		String[] userWords = user.wordList().toArray(new String[user.wordList().size()]);
+		Arrays.sort(userWords, WordLists.CASE_INSENSITIVE_COMPARATOR);
+		rules.add(new DictionarySubstringRule(new WordListDictionary(new ArrayWordList(userWords, false))));
+
+		edu.vt.middleware.password.PasswordValidator validator =
+				new edu.vt.middleware.password.PasswordValidator(rules);
+
+
+		RuleResult result = validator.validate(passwordData);
+
+		if (!result.isValid()) {
+			String errors = StringUtils.collectionToDelimitedString(validator.getMessages(result), ",");
+
+			throw new InvalidPasswordException(errors);
+		}
+	}
+
+
+}
